@@ -1,0 +1,81 @@
+#!/bin/bash
+CFGFILE=/etc/imacfanctl
+SMCDIR='/sys/devices/platform/applesmc.768'
+
+# Might be iMac-specific
+ODD='fan1'
+HDD='fan2'
+CPU='fan3'
+
+function LoadConfig {
+  echo "Loading configuration from $1 ..."
+  if [ ! -r "$1" ]; then
+    echo "Error: can't read configuration file"
+    exit 1
+  fi
+
+  INTERVAL=`egrep '^INTERVAL=.*$' $1 | sed -e 's/INTERVAL=//g'`
+  # Optional settings
+  ODDRPM=`egrep '^ODDRPM=.*$' $1 | sed -e 's/ODDRPM=//g'`
+  HDDRPM=`egrep '^HDDRPM=.*$' $1 | sed -e 's/HDDRPM=//g'`
+  CPURPM=`egrep '^CPURPM=.*$' $1 | sed -e 's/CPURPM=//g'`
+
+  # Are mandatory values set?
+  if [[ -z ${INTERVAL} ]]; then
+    echo "Some mandatory settings missing, please check your config file!"
+    exit 1
+  fi
+  if [ "$INTERVAL" -le 0 ]; then
+    echo "Configuration error: INTERVAL must be at least 1"
+    exit 1
+  fi
+}
+
+function ValidateDevices {
+  if [[ ! -e "$SMCDIR/${ODD}_min" ||
+        ! -e "$SMCDIR/${HDD}_min" ||
+        ! -e "$SMCDIR/${CPU}_min" ]]; then
+    echo "Missing fan device(s). Please check $SMCDIR."
+    exit 1
+  fi
+}
+
+# Fetch max values
+function FetchMax {
+  ODD_max=`cat "$SMCDIR/${ODD}_max"`
+  HDD_max=`cat "$SMCDIR/${HDD}_max"`
+  CPU_max=`cat "$SMCDIR/${CPU}_max"`
+}
+
+# Hardcode fan speed for initial version
+function UpdateFanSpeeds {
+  echo $ODD_max > "$SMCDIR/${ODD}_min"
+  echo $HDD_max > "$SMCDIR/${HDD}_min"
+  echo $CPU_max > "$SMCDIR/${CPU}_min"
+}
+
+# Running in check mode?
+if [ "$1" == "--check" ]; then
+  if [ -f "$2" ]; then
+    LoadConfig $2
+  else
+    LoadConfig $CFGFILE
+  fi
+  exit 0
+fi
+
+# Load config
+if [ -f "$1" ]; then
+  LoadConfig $1
+else
+  LoadConfig $CFGFILE
+fi
+
+# Main loop
+ValidateDevices
+FetchMax
+while true; do
+  UpdateFanSpeeds
+  sleep $INTERVAL &
+  wait $!
+done
