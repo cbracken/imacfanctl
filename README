@@ -1,0 +1,6 @@
+iMac SMB Fan Control Daemon
+
+Sets fans to maximum safe value on iMac startup. Currently targets iMac6,2
+(24" 2006 white Intel Core2 Duo) only. These machines are notorious for
+a logic board issue causing panics/graphic issues when GPU temperature hits
+39-40C.
